@@ -1,0 +1,8 @@
+input UserCredentials {
+  email: String!
+  password: String!
+}
+
+extend type Query {
+  login(credentials: UserCredentials!): String!
+}

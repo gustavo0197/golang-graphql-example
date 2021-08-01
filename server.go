@@ -9,6 +9,7 @@ import (
 	"github.com/99designs/gqlgen/graphql/playground"
 	"github.com/gustavo0197/graphql/src/generated"
 	"github.com/gustavo0197/graphql/src/resolvers"
+	"github.com/joho/godotenv"
 )
 
 const defaultPort = "8080"
@@ -17,6 +18,10 @@ func main() {
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = defaultPort
+	}
+
+	if err := godotenv.Load(); err != nil {
+		panic(err)
 	}
 
 	// Connect to MongoDB
@@ -30,5 +35,5 @@ func main() {
 	http.Handle("/query", srv)
 
 	log.Printf("connect to http://localhost:%s/ for GraphQL playground", port)
-	log.Fatal(http.ListenAndServe(":"+port, nil))
+	log.Fatal(http.ListenAndServe("localhost:"+port, nil))
 }

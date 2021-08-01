@@ -9,6 +9,7 @@ import (
 	"github.com/gustavo0197/graphql/src/model"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
+	"golang.org/x/crypto/bcrypt"
 )
 
 type User struct {
@@ -25,25 +26,29 @@ type UserService struct {
 func (u *UserService) CreateUser(data model.NewUser) (*model.User, error) {
 	user := &model.User{}
 	ctx, cancel := context.WithTimeout(context.Background(), 10 * time.Second)
-
-	// TODO hash password
-
-	document := bson.M{"name": data.Name, "password": data.Password, "email": data.Email}
-
 	defer cancel()
 
-	documentId, insertError := u.GetCollection("users").InsertOne(ctx, document)
+	// Hash password
+	password, err := bcrypt.GenerateFromPassword([]byte(data.Password), 10)
 
-	if insertError != nil {
-		fmt.Println("User service error: ", insertError.Error())
-		return nil, u.MongoErrors.handleError(insertError)
+	if err != nil {
+		fmt.Println("Error hashing password: ", err)
+		return nil, err
 	}
 
-	userError := u.GetCollection("users").FindOne(ctx, bson.D{{"_id", documentId.InsertedID}}).Decode(&user)
+	document := bson.M{"name": data.Name, "password": string(password), "email": data.Email}
+	documentId, err := u.GetCollection("users").InsertOne(ctx, document)
 
-	if userError != nil {
-		fmt.Println("Error fetching user: ", userError)
-		return nil, userError
+	if err != nil {
+		fmt.Println("User service error: ", err.Error())
+		return nil, u.MongoErrors.handleError(err)
+	}
+
+	err = u.GetCollection("users").FindOne(ctx, bson.D{{"_id", documentId.InsertedID}}).Decode(&user)
+
+	if err != nil {
+		fmt.Println("Error fetching user: ", err)
+		return nil, err
 	}
 
 	return user, nil
@@ -54,17 +59,17 @@ func (u *UserService) GetUser(id string) (*model.User, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10 * time.Second)
 	defer cancel()
 
-	userId, userIdError := primitive.ObjectIDFromHex(id)
+	userId, err := primitive.ObjectIDFromHex(id)
 
-	if userIdError != nil {
-		return nil, userIdError
+	if err != nil {
+		return nil, err
 	}
 
-	userError := u.GetCollection(u.MongoService.Collections.Users).FindOne(ctx, bson.D{{"_id", userId}}).Decode(&user)
+	err = u.GetCollection(u.MongoService.Collections.Users).FindOne(ctx, bson.D{{"_id", userId}}).Decode(&user)
 
-	if userError != nil {
-		fmt.Println(userError)
-		panic("Get user error")
+	if err != nil {
+		fmt.Println("Get user error: ", err)
+		return nil, err
 	}
 
 	return user, nil
