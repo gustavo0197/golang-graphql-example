@@ -1,39 +1,57 @@
 package main
 
 import (
-	"log"
-	"net/http"
 	"os"
 
 	"github.com/99designs/gqlgen/graphql/handler"
 	"github.com/99designs/gqlgen/graphql/playground"
+	"github.com/gin-gonic/gin"
 	"github.com/gustavo0197/graphql/src/generated"
+	"github.com/gustavo0197/graphql/src/middlewares"
 	"github.com/gustavo0197/graphql/src/resolvers"
 	"github.com/joho/godotenv"
 )
 
 const defaultPort = "8080"
 
-func main() {
-	port := os.Getenv("PORT")
-	if port == "" {
-		port = defaultPort
-	}
-
-	if err := godotenv.Load(); err != nil {
-		panic(err)
-	}
-
+// GraphQL handler
+func graphqlHandler() gin.HandlerFunc {
 	// Connect to MongoDB
 	resolver := resolvers.Resolver{}
 	resolver.MongoService.Connect()
 	resolver.MongoService.CreateCollections()
 
-	srv := handler.NewDefaultServer(generated.NewExecutableSchema(generated.Config{Resolvers: &resolver}))
+	h := handler.NewDefaultServer(generated.NewExecutableSchema(generated.Config{Resolvers: &resolver}))
 
-	http.Handle("/", playground.Handler("GraphQL playground", "/query"))
-	http.Handle("/query", srv)
+	return func (c *gin.Context) {
+		h.ServeHTTP(c.Writer, c.Request)
+	}
+}
 
-	log.Printf("connect to http://localhost:%s/ for GraphQL playground", port)
-	log.Fatal(http.ListenAndServe("localhost:"+port, nil))
+func playgroundHandler() gin.HandlerFunc {
+	h := playground.Handler("GraphQL", "/query")
+
+	return func(c *gin.Context) {
+		h.ServeHTTP(c.Writer, c.Request)
+	}
+}
+
+func main() {
+	if err := godotenv.Load(); err != nil {
+		panic(err)
+	}
+
+	port := os.Getenv("PORT")
+
+	if port == "" {
+		port = defaultPort
+	}
+
+	r := gin.Default()
+
+	r.Use(middlewares.Auth())
+
+	r.POST("/query", graphqlHandler())
+	r.GET("/", playgroundHandler())
+	r.Run("localhost:" + port)
 }
