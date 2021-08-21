@@ -6,6 +6,7 @@ import (
 	"github.com/99designs/gqlgen/graphql/handler"
 	"github.com/99designs/gqlgen/graphql/playground"
 	"github.com/gin-gonic/gin"
+	"github.com/gustavo0197/graphql/src/directives"
 	"github.com/gustavo0197/graphql/src/generated"
 	"github.com/gustavo0197/graphql/src/middlewares"
 	"github.com/gustavo0197/graphql/src/resolvers"
@@ -20,8 +21,12 @@ func graphqlHandler() gin.HandlerFunc {
 	resolver := resolvers.Resolver{}
 	resolver.MongoService.Connect()
 	resolver.MongoService.CreateCollections()
+	config := generated.Config{}
+	config.Resolvers = &resolver
 
-	h := handler.NewDefaultServer(generated.NewExecutableSchema(generated.Config{Resolvers: &resolver}))
+	config.Directives.IsAuth = directives.IsAuth
+
+	h := handler.NewDefaultServer(generated.NewExecutableSchema(config))
 
 	return func (c *gin.Context) {
 		h.ServeHTTP(c.Writer, c.Request)

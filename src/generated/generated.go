@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"strconv"
 	"sync"
 	"sync/atomic"
@@ -40,6 +41,7 @@ type ResolverRoot interface {
 }
 
 type DirectiveRoot struct {
+	IsAuth func(ctx context.Context, obj interface{}, next graphql.Resolver) (res interface{}, err error)
 }
 
 type ComplexityRoot struct {
@@ -63,7 +65,7 @@ type MutationResolver interface {
 	User(ctx context.Context, data model.NewUser) (*model.User, error)
 }
 type QueryResolver interface {
-	Login(ctx context.Context, credentials model.UserCredentials) (string, error)
+	Login(ctx context.Context, credentials model.UserCredentials) (bool, error)
 	User(ctx context.Context, id string) (*model.User, error)
 }
 
@@ -209,7 +211,7 @@ var sources = []*ast.Source{
 }
 
 extend type Query {
-  login(credentials: UserCredentials!): String!
+  login(credentials: UserCredentials!): Boolean!
 }`, BuiltIn: false},
 	{Name: "src/schema/schema.graphqls", Input: `# GraphQL schema example
 #
@@ -218,7 +220,9 @@ extend type Query {
 type Query
 
 type Mutation`, BuiltIn: false},
-	{Name: "src/schema/user.graphqls", Input: `type User {
+	{Name: "src/schema/user.graphqls", Input: `directive @isAuth on FIELD_DEFINITION
+
+type User {
   _id: ID!
   name: String!
   email: String!
@@ -231,7 +235,7 @@ input NewUser {
 }
 
 extend type Query {
-  user(id: String!): User!
+  user(id: String!): User! @isAuth
 }
 
 extend type Mutation {
@@ -421,9 +425,9 @@ func (ec *executionContext) _Query_login(ctx context.Context, field graphql.Coll
 		}
 		return graphql.Null
 	}
-	res := resTmp.(string)
+	res := resTmp.(bool)
 	fc.Result = res
-	return ec.marshalNString2string(ctx, field.Selections, res)
+	return ec.marshalNBoolean2bool(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) _Query_user(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
@@ -450,8 +454,28 @@ func (ec *executionContext) _Query_user(ctx context.Context, field graphql.Colle
 	}
 	fc.Args = args
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
-		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Query().User(rctx, args["id"].(string))
+		directive0 := func(rctx context.Context) (interface{}, error) {
+			ctx = rctx // use context from middleware stack in children
+			return ec.resolvers.Query().User(rctx, args["id"].(string))
+		}
+		directive1 := func(ctx context.Context) (interface{}, error) {
+			if ec.directives.IsAuth == nil {
+				return nil, errors.New("directive isAuth is not implemented")
+			}
+			return ec.directives.IsAuth(ctx, nil, directive0)
+		}
+
+		tmp, err := directive1(rctx)
+		if err != nil {
+			return nil, graphql.ErrorOnPath(ctx, err)
+		}
+		if tmp == nil {
+			return nil, nil
+		}
+		if data, ok := tmp.(*model.User); ok {
+			return data, nil
+		}
+		return nil, fmt.Errorf(`unexpected type %T from directive, should be *github.com/gustavo0197/graphql/src/model.User`, tmp)
 	})
 	if err != nil {
 		ec.Error(ctx, err)

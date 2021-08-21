@@ -8,11 +8,21 @@ import (
 
 	"github.com/gustavo0197/graphql/src/model"
 	"github.com/gustavo0197/graphql/src/services"
+	"github.com/gustavo0197/graphql/src/utils"
 )
 
-func (r *queryResolver) Login(ctx context.Context, credentials model.UserCredentials) (string, error) {
+func (r *queryResolver) Login(ctx context.Context, credentials model.UserCredentials) (bool, error) {
 	authService := services.AuthService{}
 	authService.MongoService = r.MongoService
+	cookiesWriter := utils.GetCookiesWriter(ctx)
 
-	return authService.Login(&credentials)
+	token, error := authService.Login(&credentials)
+
+	if error != nil || token == "" {
+		return false, error
+	}
+
+	cookiesWriter.SetToken(token)
+
+	return true, error
 }

@@ -4,5 +4,5 @@ input UserCredentials {
 }
 
 extend type Query {
-  login(credentials: UserCredentials!): String!
+  login(credentials: UserCredentials!): Boolean!
 }
