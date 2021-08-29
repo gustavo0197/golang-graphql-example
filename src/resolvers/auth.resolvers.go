@@ -5,6 +5,7 @@ package resolvers
 
 import (
 	"context"
+	"time"
 
 	"github.com/gustavo0197/graphql/src/model"
 	"github.com/gustavo0197/graphql/src/services"
@@ -22,7 +23,7 @@ func (r *queryResolver) Login(ctx context.Context, credentials model.UserCredent
 		return false, error
 	}
 
-	cookiesWriter.SetToken(token)
+	cookiesWriter.SetToken(token, time.Now().Add(time.Hour * 24 * 15))
 
 	return true, error
 }

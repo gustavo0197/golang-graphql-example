@@ -35,6 +35,7 @@ func (a *AuthService) Login(credentials *model.UserCredentials) (token string, e
 
 	authToken := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
 		"id": user.ID,
+		"exp": time.Now().Add(time.Duration(time.Hour * 24 * 15)).Unix(),
 	})
 
 	signedToken, err := authToken.SignedString([]byte(JWT_SECRET))
